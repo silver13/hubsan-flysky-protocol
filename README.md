@@ -1,3 +1,19 @@
+Flysky protocol for Hubsan port of bradwii
+=======
+Implemented flysky protocol (version1) for hubsan boards. This protocol is used by some turnigy transmitters also. 
+This is not compatible with AFHDS2 protocol, that needs to be turned off if possible. 6 channels are used.
+
+Not implemented is tx saving. Currently it needs binding every time it powers up.
+
+Some options in file rx_flysky.c could be of use.
+
+Tested with TGY-i6. ( flysky i6 rebranded )
+
+Based on https://github.com/goebish/bradwii-X4 
+
+Original info follows
+=====
+
 Bradwii for JXD JD385, WLToys V202, Hubsan H107L and clones
 =======
 
