@@ -1,5 +1,5 @@
 Changes: (17.08.15)
-== 
+--
 Added up to 8 channel support if more then 6 channels defined by RXNUMCHANNELS
 
 Swapped yaw - roll, seems it was the wrong way around
