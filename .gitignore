@@ -1,3 +1,19 @@
+obj/
+obj-Mini51/
+*.dep
+*.uvopt
+*.uvgui.*
+*.bak
+*.map
+*.lst
+/Debug
+.settings/
+
+
+*.crf
+
+
+
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
@@ -13,6 +29,8 @@ $RECYCLE.BIN/
 *.msi
 *.msm
 *.msp
+
+
 
 # Windows shortcuts
 *.lnk

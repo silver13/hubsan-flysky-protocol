@@ -30,9 +30,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define A7105_SCK   (DIGITALPORT1 | 3)
 #define A7105_SDIO  (DIGITALPORT1 | 2)
 
+// channel gain for first 4 channels - throttle excepted
+// imho it's better to change LEVEL_MODE_MAX_TILT since it is multiplied with the rx value
+// that way it will still indicate the actual angle
+#define CHANNEL_GAIN 131 
+
+// a separate throttle gain for compatibility
+// slightly higher to make sure we don't lose throttle at max
+#define THROTTLE_GAIN 133
+
+// a separate switch gain for the aux channels
+#define SWITCH_GAIN 131
 
 // offset to substract from ppm value so that it centers at zero
 #define PPM_OFFSET 1500
+
+
 
 // channel hopping time in the flysky / turnigy protocol ( in uS )
 #define HOP_TIME 1450
@@ -51,13 +64,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // you could hardwire it here
 static uint32_t id = 0;
 
+// Swap yaw and roll
+// this might be needed by someone
+//#define SWAP_YAW_AND_ROLL
+
 #ifdef ANY_TX
 #warning ANY_TX is on
 #endif
 
 // channel hopping table
+// made smaller to save ROM, some is done in software
+// based on the fact that every second row was the previous back to front
 // even columns are the previous column value + 0x50
-// may help save some (more) memory
+// may help save some (more) memory sometime
 static const uint8_t tx_channels[8][16] = {
   {0x0a, 0x5a, 0x14, 0x64, 0x1e, 0x6e, 0x28, 0x78, 0x32, 0x82, 0x3c, 0x8c, 0x46, 0x96, 0x50, 0xa0},
   {0x0a, 0x5a, 0x50, 0xa0, 0x14, 0x64, 0x46, 0x96, 0x1e, 0x6e, 0x3c, 0x8c, 0x28, 0x78, 0x32, 0x82},
@@ -191,16 +210,31 @@ void bind()
 void decodepacket()
 {
 	// converts [0;XXXX] to [-1;1] fixed point num
-	// 
-	lib_fp_lowpassfilter(&global.rxvalues[THROTTLEINDEX], ( ((uint32_t) (packet[9]+256*packet[10])) - PPM_OFFSET ) * 131L , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
-	lib_fp_lowpassfilter(&global.rxvalues[YAWINDEX], ( ((uint32_t) (packet[5]+256*packet[6])) - PPM_OFFSET ) * 131L, global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
-	lib_fp_lowpassfilter(&global.rxvalues[PITCHINDEX], ( ((uint32_t) (packet[7]+256*packet[8])) - PPM_OFFSET ) * 131L , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
-	lib_fp_lowpassfilter(&global.rxvalues[ROLLINDEX], ( ((uint32_t) (packet[11]+256*packet[12])) - PPM_OFFSET ) * 131L , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+	// throttle multiplier slightly higher so it reaches 65535 at default 100% rates
+	lib_fp_lowpassfilter(&global.rxvalues[THROTTLEINDEX], ( ((uint32_t) (packet[9]+256*packet[10])) - PPM_OFFSET ) * THROTTLE_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+	lib_fp_lowpassfilter(&global.rxvalues[PITCHINDEX], ( ((uint32_t) (packet[7]+256*packet[8])) - PPM_OFFSET ) * CHANNEL_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+
+#ifdef SWAP_YAW_AND_ROLL
+		lib_fp_lowpassfilter(&global.rxvalues[YAWINDEX], ( ((uint32_t) (packet[5]+256*packet[6])) - PPM_OFFSET ) * CHANNEL_GAIN, global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+		lib_fp_lowpassfilter(&global.rxvalues[ROLLINDEX], ( ((uint32_t) (packet[11]+256*packet[12])) - PPM_OFFSET ) * CHANNEL_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+#else
+		lib_fp_lowpassfilter(&global.rxvalues[ROLLINDEX], ( ((uint32_t) (packet[5]+256*packet[6])) - PPM_OFFSET ) * CHANNEL_GAIN, global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+		lib_fp_lowpassfilter(&global.rxvalues[YAWINDEX], ( ((uint32_t) (packet[11]+256*packet[12])) - PPM_OFFSET ) * CHANNEL_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+#endif
+	
 	// AUX1 == CH5
-	lib_fp_lowpassfilter(&global.rxvalues[AUX1INDEX], ( ((uint32_t) (packet[13]+256*packet[14])) - PPM_OFFSET ) * 131L , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+	lib_fp_lowpassfilter(&global.rxvalues[AUX1INDEX], ( ((uint32_t) (packet[13]+256*packet[14])) - PPM_OFFSET ) * SWITCH_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
 	// AUX2 == CH6
-	lib_fp_lowpassfilter(&global.rxvalues[AUX2INDEX], ( ((uint32_t) (packet[15]+256*packet[16])) - PPM_OFFSET ) * 131L , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
-	//  lib_fp_constrain(&global.rxvalues[THROTTLEINDEX], -FIXEDPOINTONE, FIXEDPOINTONE);
+	lib_fp_lowpassfilter(&global.rxvalues[AUX2INDEX], ( ((uint32_t) (packet[15]+256*packet[16])) - PPM_OFFSET ) * SWITCH_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+
+#if (RXNUMCHANNELS>6)  
+	lib_fp_lowpassfilter(&global.rxvalues[AUX3INDEX], ( ((uint32_t) (packet[17]+256*packet[18])) - PPM_OFFSET ) * SWITCH_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+#endif
+#if (RXNUMCHANNELS>7)
+	lib_fp_lowpassfilter(&global.rxvalues[AUX4INDEX], ( ((uint32_t) (packet[19]+256*packet[20])) - PPM_OFFSET ) * SWITCH_GAIN , global.timesliver, FIXEDPOINTONEOVERONESIXTYITH, TIMESLIVEREXTRASHIFT);
+#endif
+// this is done in other places too, but better safe then sorry
+  lib_fp_constrain(&global.rxvalues[THROTTLEINDEX], -FIXEDPOINTONE, FIXEDPOINTONE);
 	//  lib_fp_constrain(&global.rxvalues[ROLLINDEX], -FIXEDPOINTONE, FIXEDPOINTONE);
 	//  lib_fp_constrain(&global.rxvalues[PITCHINDEX], -FIXEDPOINTONE, FIXEDPOINTONE);
 	//	lib_fp_constrain(&global.rxvalues[YAWINDEX], -FIXEDPOINTONE, FIXEDPOINTONE);
