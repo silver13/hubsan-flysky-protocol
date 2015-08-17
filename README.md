@@ -1,10 +1,10 @@
 Changes: (17.08.15)
 --
-[x] Added up to 8 channel support if more then 6 channels defined by RXNUMCHANNELS
+- [x] Added up to 8 channel support if more then 6 channels defined by RXNUMCHANNELS
 
-[x] Swapped yaw - roll, seems it was the wrong way around
+- [x] Swapped yaw - roll, seems it was the wrong way around
 
-[x] Made gains changeable with defines
+- [x] Made gains changeable with defines
 
 Flysky protocol for Hubsan port of bradwii
 =======
